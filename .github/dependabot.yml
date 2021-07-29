@@ -3,6 +3,15 @@
 
 version: 2
 updates:
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    labels:
+      - "github-actions"
+      - "dependencies"
+
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -12,3 +21,6 @@ updates:
     commit-message:
       prefix: "npm"
       include: "scope"
+    labels:
+      - "npm"
+      - "dependencies"
