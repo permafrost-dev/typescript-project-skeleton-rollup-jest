@@ -1,8 +1,8 @@
 import commonjs from '@rollup/plugin-commonjs';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
-import { terser } from 'rollup-plugin-terser';
-import typescript from '@rollup/plugin-typescript';
 import replace from '@rollup/plugin-replace';
+import typescript from '@rollup/plugin-typescript';
+import { terser } from 'rollup-plugin-terser';
 
 const options = {
     sourceMapsEnabled: false,
@@ -12,20 +12,20 @@ const options = {
 const outputs = {
     minified: options.minified
         ? [
-              {
-                  file: 'dist/index.min.cjs.js',
-                  format: 'cjs',
-                  plugins: [terser()],
-                  sourcemap: options.sourceMapsEnabled,
-                  exports: 'auto',
-              },
-              {
-                  file: 'dist/index.esm.min.mjs',
-                  format: 'esm',
-                  plugins: [terser()],
-                  sourcemap: options.sourceMapsEnabled,
-              },
-          ]
+            {
+                file: 'dist/index.min.cjs.js',
+                format: 'cjs',
+                plugins: [terser()],
+                sourcemap: options.sourceMapsEnabled,
+                exports: 'auto',
+            },
+            {
+                file: 'dist/index.esm.min.mjs',
+                format: 'esm',
+                plugins: [terser()],
+                sourcemap: options.sourceMapsEnabled,
+            },
+        ]
         : [],
     unminified: [
         {
