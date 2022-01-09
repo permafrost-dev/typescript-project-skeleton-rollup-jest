@@ -12,20 +12,20 @@ const options = {
 const outputs = {
     minified: options.minified
         ? [
-            {
-                file: 'dist/index.min.cjs.js',
-                format: 'cjs',
-                plugins: [terser()],
-                sourcemap: options.sourceMapsEnabled,
-                exports: 'auto',
-            },
-            {
-                file: 'dist/index.esm.min.mjs',
-                format: 'esm',
-                plugins: [terser()],
-                sourcemap: options.sourceMapsEnabled,
-            },
-        ]
+              {
+                  file: 'dist/index.min.cjs.js',
+                  format: 'cjs',
+                  plugins: [terser()],
+                  sourcemap: options.sourceMapsEnabled,
+                  exports: 'auto',
+              },
+              {
+                  file: 'dist/index.esm.min.mjs',
+                  format: 'esm',
+                  plugins: [terser()],
+                  sourcemap: options.sourceMapsEnabled,
+              },
+          ]
         : [],
     unminified: [
         {
