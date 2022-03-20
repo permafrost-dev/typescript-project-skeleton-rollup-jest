@@ -1,3 +1,4 @@
+/** @type {import('prettier').Config} */
 const overrides = [
     {
         files: ['*.yml', '*.yaml'],
@@ -6,13 +7,14 @@ const overrides = [
         },
     },
     {
-        files: 'tsconfig.json',
+        files: '.madgerc',
         options: {
             parser: 'json',
         },
     },
 ];
 
+/** @type {import('prettier').RequiredOptions} */
 module.exports = {
     arrowParens: 'avoid',
     bracketSameLine: true,
@@ -21,7 +23,7 @@ module.exports = {
     insertPragma: false,
     jsxSingleQuote: false,
     overrides,
-    printWidth: 140,
+    printWidth: 155,
     proseWrap: 'preserve',
     quoteProps: 'as-needed',
     requirePragma: false,
