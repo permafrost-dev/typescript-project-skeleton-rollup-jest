@@ -1,14 +1,25 @@
 {
     "name": "package-skeleton",
     "version": "1.0.0",
+    "author": "{{package.author.name}} <{{package.author.email}}>",
+    "license": "MIT",
     "description": "{{package.description}}",
-    "main": "dist/index.js",
+    "homepage": "https://github.com/{{vendor.github}}/{{package.name}}",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/{{vendor.github}}/{{package.name}}.git"
+    },
+    "bugs": {
+        "url": "https://github.com/{{vendor.github}}/{{package.name}}/issues"
+    },
     "exports": {
         ".": {
             "import": "./dist/index.esm.mjs",
             "require": "./dist/index.cjs.js"
         }
     },
+    "main": "dist/index.js",
+    "typings": "dist/index.d.ts",
     "scripts": {
         "test": "./node_modules/.bin/jest tests --verbose",
         "test:coverage": "./node_modules/.bin/jest tests --coverage",
@@ -17,11 +28,12 @@
         "lint:fix": "./node_modules/.bin/eslint --ext ts,js --fix src/",
         "lint:staged": "./node_modules/.bin/lint-staged",
         "fix": "npm run fmt && npm run lint:fix",
+        "build:dts": "dts-bundle-generator -o ./dist/index.d.ts ./src/index.ts",
         "build": "rollup --config rollup.config.js",
-        "prepare": "husky install"
+        "preversion": "npm run test",
+        "postversion": "npm run build && npm run build:dts",
+        "prepare": "is-ci || husky install"
     },
-    "author": "{{package.author.name}} <{{package.author.email}}>",
-    "license": "MIT",
     "lint-staged": {
         "*.{js,ts}": [
             "./node_modules/.bin/prettier --config prettier.config.js --write",
@@ -36,21 +48,25 @@
     },
     "devDependencies": {
         "@rollup/plugin-commonjs": "^22.0.1",
-        "@rollup/plugin-node-resolve": "^13.1.3",
+        "@rollup/plugin-node-resolve": "^13.3.0",
         "@rollup/plugin-replace": "^4.0.0",
-        "@rollup/plugin-typescript": "^8.3.1",
-        "@types/jest": "^28.1.1",
-        "@types/node": "^18.0.0",
-        "@typescript-eslint/eslint-plugin": "^5.15.0",
-        "@typescript-eslint/parser": "^5.15.0",
-        "eslint": "^8.11.0",
+        "@rollup/plugin-typescript": "^8.3.3",
+        "@types/jest": "^28.1.4",
+        "@types/node": "^18.0.1",
+        "@typescript-eslint/eslint-plugin": "^5.30.4",
+        "@typescript-eslint/parser": "^5.30.4",
+        "dts-bundle-generator": "^6.12.0",
+        "eslint": "^8.19.0",
+        "eslint-plugin-jest": "^26.5.3",
+        "eslint-plugin-node": "^11.1.0",
         "husky": "^8.0.1",
-        "jest": "^27.5.1",
-        "lint-staged": "^13.0.0",
-        "prettier": "^2.6.0",
-        "rollup": "^2.70.1",
+        "is-ci": "^3.0.1",
+        "jest": "^28.1.2",
+        "lint-staged": "^13.0.3",
+        "prettier": "^2.7.1",
+        "rollup": "^2.75.7",
         "rollup-plugin-terser": "^7.0.2",
-        "ts-jest": "^27.1.3",
-        "typescript": "^4.6"
+        "ts-jest": "^28.0.5",
+        "typescript": "^4.7"
     }
 }

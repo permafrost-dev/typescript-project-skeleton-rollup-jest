@@ -1,18 +1,13 @@
-// @ts-nocheck
-/* eslint-disable no-unused-vars */
-/* eslint-disable no-undef */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
 /**
  * configures a package created from the template.
  */
 
+const { basename } = require('path');
+const cp = require('child_process');
 const fs = require('fs');
-const path = require('path');
+const https = require('https');
 const readline = require('readline');
 const util = require('util');
-const cp = require('child_process');
-const { basename } = require('path');
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -27,13 +22,13 @@ const packageInfo = {
     name: '',
     description: '',
     vendor: {
-        name: '',
         github: '',
+        name: '',
     },
     author: {
-        name: '',
         email: '',
         github: '',
+        name: '',
     },
 };
 
@@ -67,6 +62,59 @@ const askQuestion = async (prompt, defaultValue = '') => {
     });
 };
 
+async function getGithubApiEndpoint(endpoint) {
+    const url = `https://api.github.com/${endpoint}`.replace('//', '/');
+
+    const requestJson = async url => {
+        const options = {
+            headers: {
+                'User-Agent': 'permafrost-dev-template-configure/1.0',
+                Accept: 'application/json, */*',
+            },
+        };
+
+        return new Promise((resolve, reject) => {
+            const req = https.get(url, options);
+
+            req.on('response', async res => {
+                let body = '';
+                res.setEncoding('utf-8');
+
+                for await (const chunk of res) {
+                    body += chunk;
+                }
+
+                resolve(JSON.parse(body));
+            });
+
+            req.on('error', err => {
+                throw new err();
+                reject(err);
+            });
+        });
+    };
+
+    const response = {
+        exists: true,
+        data: {},
+    };
+
+    try {
+        response.data = await requestJson(url);
+        response.exists = true;
+    } catch (e) {
+        response.exists = false;
+        response.data = {};
+    }
+
+    if (response.exists && response.data['message'] === 'Not Found') {
+        response.exists = false;
+        response.data = {};
+    }
+
+    return response;
+}
+
 function rescue(func, defaultValue = null) {
     try {
         return func();
@@ -83,10 +131,6 @@ function is_dir(path) {
         // lstatSync throws an error if path doesn't exist
         return false;
     }
-}
-
-function is_symlink(path) {
-    return rescue(() => fs.lstatSync(path).isSymbolicLink(), false);
 }
 
 function is_file(path) {
@@ -119,17 +163,23 @@ const processFiles = (directory, packageInfo) => {
         return ![
             '.',
             '..',
-            '.git',
-            '.github',
             '.editorconfig',
+            '.eslintignore',
+            '.eslintrc.js',
+            '.git',
             '.gitattributes',
+            '.github',
             '.gitignore',
             '.prettierignore',
             '.prettierrc',
-            'package-lock.json',
-            'node_modules',
+            'build-library.js',
+            'build.js',
             'configure-package.js',
-        ].includes(path.basename(f));
+            'node_modules',
+            'package-lock.json',
+            'prettier.config.js',
+            'yarn.lock',
+        ].includes(basename(f));
     });
 
     files.forEach(fn => {
@@ -187,6 +237,12 @@ const populatePackageInfo = async (onlyEmpty = false) => {
     packageInfo.author.github = remoteUrlParts[1];
     packageInfo.vendor.github = remoteUrlParts[1];
 
+    const orgResponse = await getGithubApiEndpoint(`orgs/${packageInfo.vendor.github}`);
+
+    if (orgResponse.exists) {
+        packageInfo.vendor.name = orgResponse.data.name;
+    }
+
     await conditionalAsk(packageInfo, 'name', onlyEmpty, 'package name?', false);
     await conditionalAsk(packageInfo, 'description', onlyEmpty, 'package description?');
     await conditionalAsk(packageInfo.author, 'name', onlyEmpty, 'author name?');
@@ -207,9 +263,48 @@ const populatePackageInfo = async (onlyEmpty = false) => {
 const safeUnlink = path => fs.existsSync(path) && fs.unlinkSync(path);
 const getWorkflowFilename = name => `${__dirname}/.github/workflows/${name}.yml`;
 const getGithubConfigFilename = name => `${__dirname}/.github/${name}.yml`;
+const writeFormattedJson = (filename, data) => fs.writeFileSync(filename, JSON.stringify(data, null, 4), { encoding: 'utf-8' });
+
+class PackageFile {
+    pkg = {};
+
+    constructor() {
+        this.pkg = {};
+        this.load();
+    }
+    load() {
+        this.pkg = require(`${__dirname}/package.json`);
+        return this;
+    }
+    save() {
+        writeFormattedJson(`${__dirname}/package.json`, this.pkg);
+        return this;
+    }
+    replaceScript(name, script) {
+        this.pkg.scripts[name] = script;
+        return this;
+    }
+    deleteScripts(...names) {
+        for (const name of names) {
+            if (typeof this.pkg.scripts[name] !== 'undefined') {
+                delete this.pkg.scripts[name];
+            }
+        }
+        return this;
+    }
+    delete(...keys) {
+        for (const key of keys) {
+            if (typeof this.pkg[key] !== 'undefined') {
+                delete this.pkg[key];
+            }
+        }
+        return this;
+    }
+}
 
 class Features {
     codecov = {
+        name: 'codecov',
         prompt: 'Use code coverage service codecov?',
         enabled: true,
         dependsOn: [],
@@ -225,8 +320,10 @@ class Features {
     };
 
     dependabot = {
+        name: 'dependabot',
         prompt: 'Use Dependabot?',
         enabled: true,
+        default: true,
         dependsOn: [],
         disable: () => {
             safeUnlink(getGithubConfigFilename('dependabot'));
@@ -235,8 +332,10 @@ class Features {
     };
 
     automerge = {
+        name: 'automerge',
         prompt: 'Automerge Dependabot PRs?',
         enabled: true,
+        default: true,
         dependsOn: ['dependabot'],
         disable: () => {
             safeUnlink(getWorkflowFilename('dependabot-auto-merge'));
@@ -244,8 +343,10 @@ class Features {
     };
 
     codeql = {
+        name: 'codeql',
         prompt: 'Use CodeQL Quality Analysis?',
         enabled: true,
+        default: true,
         dependsOn: [],
         disable: () => {
             safeUnlink(getWorkflowFilename('codeql-analysis'));
@@ -253,6 +354,7 @@ class Features {
     };
 
     updateChangelog = {
+        name: 'updateChangelog',
         prompt: 'Use Changelog Updater Workflow?',
         enabled: true,
         dependsOn: [],
@@ -262,6 +364,7 @@ class Features {
     };
 
     useMadgePackage = {
+        name: 'useMadgePackage',
         prompt: 'Use madge package for code analysis?',
         enabled: true,
         dependsOn: [],
@@ -269,23 +372,108 @@ class Features {
             runCommand('npm rm madge');
             safeUnlink(`${__dirname}/.madgerc`);
 
-            const pkg = require(`${__dirname}/package.json`);
-
-            delete pkg.scripts['analyze:deps:circular'];
-            delete pkg.scripts['analyze:deps:list'];
-            delete pkg.scripts['analyze:deps:graph'];
-
-            fs.writeFileSync(`${__dirname}/package.json`, JSON.stringify(pkg, null, 4), { encoding: 'utf-8' });
+            const pkg = new PackageFile();
+            pkg.deleteScripts('analyze:deps:circular', 'analyze:deps:list', 'analyze:deps:graph').save();
         },
     };
 
-    features = [this.codecov, this.dependabot, this.automerge, this.codeql, this.updateChangelog, this.useMadgePackage];
+    useJestPackage = {
+        name: 'useJestPackage',
+        prompt: 'Use jest for js/ts unit testing?',
+        enabled: true,
+        default: true,
+        dependsOn: [],
+        disable: () => {
+            runCommand('npm rm jest @types/jest ts-jest');
+            safeUnlink(`${__dirname}/jest.config.js`);
+
+            const pkg = new PackageFile();
+            pkg.deleteScripts('test:coverage').replaceScript('test', 'echo "no tests defined" && exit 0').save();
+
+            // remove tsconfig jest types reference
+            let tsConfigContent = fs.readFileSync('${__dirname}/tsconfig.json').toString();
+
+            tsConfigContent = tsConfigContent.replace(/"jest",?\s*/, '');
+            fs.writeFileSync(`${__dirname}/tsconfig.json`, tsConfigContent, { encoding: 'utf-8' });
+        },
+    };
+
+    useEslintPackage = {
+        name: 'useEslintPackage',
+        prompt: 'Use ESLint for js/ts code linting?',
+        enabled: true,
+        default: true,
+        dependsOn: [],
+        disable: () => {
+            runCommand('npm rm eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser');
+            safeUnlink(`${__dirname}/.eslintrc.js`);
+
+            const pkg = new PackageFile();
+
+            pkg.deleteScripts('lint', 'lint:fix').replaceScript('fix', pkg.pkg.scripts['fix'].replace('&& npm run lint:fix', ''));
+
+            for (const key of Object.keys(pkg.pkg['lint-staged'])) {
+                pkg.pkg['lint-staged'][key] = pkg.pkg['lint-staged'].filter(cmd => !cmd.includes('eslint'));
+            }
+
+            pkg.save();
+        },
+    };
+
+    isPackageCommandLineApp = {
+        name: 'isPackageCommandLineApp',
+        prompt: 'Is this package a command line application?',
+        enabled: true,
+        default: false,
+        dependsOn: [],
+        disable: () => {
+            const pkg = new PackageFile();
+
+            pkg.delete('bin').save();
+
+            this.useCommanderPackage.disable();
+        },
+    };
+
+    useCommanderPackage = {
+        name: 'useCommanderPackage',
+        prompt: 'Use the commander package for creating CLI apps?',
+        enabled: true,
+        default: true,
+        dependsOn: ['isPackageCommandLineApp'],
+        disable: () => {
+            //
+        },
+    };
+
+    features = [
+        this.codecov,
+        this.dependabot,
+        this.automerge,
+        this.codeql,
+        this.updateChangelog,
+        this.useMadgePackage,
+        this.useJestPackage,
+        this.useEslintPackage,
+        this.isPackageCommandLineApp,
+        // this.useCommanderPackage,
+    ];
 
     async run() {
+        const state = {};
+
         for (let feature of this.features) {
+            if (feature.dependsOn.length > 0) {
+                const dependencies = feature.dependsOn.map(dep => state[dep]);
+
+                feature.enabled = dependencies.every(dep => dep);
+            }
+
             if (feature.enabled) {
                 feature.enabled = await askBooleanQuestion(feature.prompt, feature.default);
             }
+
+            state[feature.name] = feature.enabled;
 
             if (!feature.enabled) {
                 feature.disable();
@@ -294,40 +482,37 @@ class Features {
     }
 }
 
-function dedent(templ, ...values) {
-    let strings = Array.from(typeof templ === 'string' ? [templ] : templ);
-    strings[strings.length - 1] = strings[strings.length - 1].replace(/\r?\n([\t ]*)$/, '');
-    const indentLengths = strings.reduce((arr, str) => {
-        const matches = str.match(/\n([\t ]+|(?!\s).)/g);
-        if (matches) {
-            return arr.concat(
-                matches.map(match => {
-                    var _a;
-                    return ((_a = match.match(/[\t ]/g)) == null ? void 0 : _a.length) ?? 0;
-                }),
-            );
+/**
+ * Removes the template README text from the README.md file
+ */
+function removeTemplateReadmeText() {
+    const END_BLOCK_STR = '<!-- ==END TEMPLATE README== -->';
+    const START_BLOCK_STR = '<!-- ==START TEMPLATE README== -->';
+
+    const content = fs.readFileSync(`${__dirname}/README.md`).toString();
+
+    if (content.includes(START_BLOCK_STR) && content.includes(END_BLOCK_STR)) {
+        const startBlockPos = content.indexOf(START_BLOCK_STR);
+        const endBlockPos = content.lastIndexOf(END_BLOCK_STR);
+
+        const newContent = content.replace(content.substring(startBlockPos, endBlockPos + END_BLOCK_STR.length), '');
+
+        if (newContent.length) {
+            fs.writeFileSync('./README.md', newContent);
         }
-        return arr;
-    }, []);
-    if (indentLengths.length) {
-        const pattern = new RegExp(`[	 ]{${Math.min(...indentLengths)}}`, 'g');
-        strings = strings.map(str => str.replace(pattern, '\n'));
     }
-    strings[0] = strings[0].replace(/^\r?\n/, '');
-    let string = strings[0];
-    values.forEach((value, i) => {
-        const endentations = string.match(/(?:^|\n)( *)$/);
-        const endentation = endentations ? endentations[1] : '';
-        let indentedValue = value;
-        if (typeof value === 'string' && value.includes('\n')) {
-            indentedValue = String(value)
-                .split('\n')
-                .map((str, i2) => (i2 === 0 ? str : `${endentation}${str}`))
-                .join('\n');
+}
+
+function removeAssetsDirectory() {
+    try {
+        for (const fn of fs.readdirSync(`${__dirname}/assets`)) {
+            fs.unlinkSync(`${__dirname}/assets/${fn}`);
         }
-        string += indentedValue + strings[i + 1];
-    });
-    return string;
+
+        fs.rmdirSync(`${__dirname}/assets`);
+    } catch (e) {
+        //
+    }
 }
 
 class OptionalPackages {
@@ -448,6 +633,8 @@ const run = async function () {
     }
 
     try {
+        removeTemplateReadmeText();
+        removeAssetsDirectory();
         processFiles(__dirname, packageInfo);
         installDependencies();
         await new OptionalPackages().run();
