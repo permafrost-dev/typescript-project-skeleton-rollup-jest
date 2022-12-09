@@ -42,6 +42,8 @@ module.exports = {
         'jest/no-disabled-tests': 'warn',
         'jest/no-identical-title': 'error',
         'newline-per-chained-call': [ 'warn', { ignoreChainWithDepth: 2 }],
+        'node/no-missing-import': 'off',
+        'node/no-missing-require': 'off',
         'node/no-process-exit': 'off',
         'node/no-unpublished-require': 'off',
         'node/no-unsupported-features/es-syntax': 'off',
@@ -53,18 +55,7 @@ module.exports = {
         'no-eval': 'error',
         'no-var': 'error',
         'object-curly-newline': [ 'warn', { ObjectExpression: { multiline: true, minProperties: 4 }, ObjectPattern: { multiline: true, minProperties: 4 }, ImportDeclaration: 'never' },],
-        'sort-imports': [
-            'warn',
-            {
-                memberSyntaxSortOrder: [
-                    'multiple',
-                    'single',
-                    'none',
-                    'all'
-                ],
-            },
-        ],
-        'sort-keys': [ 'warn', 'asc', { caseSensitive: false, minKeys: 2, natural: true }],
+        'sort-keys': [ 'warn', 'asc', { caseSensitive: false, minKeys: 5, natural: true }],
     },
     ignorePatterns: [ 'dist/*', 'configure-package.js' ],
 };
