@@ -115,6 +115,38 @@ async function getGithubApiEndpoint(endpoint) {
     return response;
 }
 
+function getGithubUsernameFromGitRemote() {
+    const remoteUrlParts = gitCommand('config remote.origin.url').trim().replace(':', '/').split('/');
+    return remoteUrlParts[1];
+}
+
+function searchCommitsForGithubUsername() {
+    const authorName = gitCommand(`config user.name`).trim().toLowerCase();
+
+    const committers = gitCommand(`log --author='@users.noreply.github.com'  --pretty='%an:%ae' --reverse`)
+        .split('\n')
+        .map(line => line.trim())
+        .map(line => ({ name: line.split(':')[0], email: line.split(':')[1] }))
+        .filter(item => !item.name.includes('[bot]'))
+        .filter(item => item.name.toLowerCase().localeCompare(authorName.toLowerCase()) === 0);
+
+    if (!committers.length) {
+        return '';
+    }
+
+    return committers[0].email.split('@')[0];
+}
+
+function guessGithubUsername() {
+    const username = searchCommitsForGithubUsername();
+
+    if (username.length) {
+        return username;
+    }
+
+    return getGithubUsernameFromGitRemote();
+}
+
 function rescue(func, defaultValue = null) {
     try {
         return func();
@@ -168,7 +200,6 @@ const processFiles = (directory, packageInfo) => {
             '.eslintrc.js',
             '.git',
             '.gitattributes',
-            '.github',
             '.gitignore',
             '.prettierignore',
             '.prettierrc',
@@ -234,7 +265,7 @@ const populatePackageInfo = async (onlyEmpty = false) => {
     packageInfo.author.name = gitCommand('config user.name').trim();
     packageInfo.author.email = gitCommand('config user.email').trim();
     packageInfo.vendor.name = packageInfo.author.name;
-    packageInfo.author.github = remoteUrlParts[1];
+    packageInfo.author.github = guessGithubUsername();
     packageInfo.vendor.github = remoteUrlParts[1];
 
     const orgResponse = await getGithubApiEndpoint(`orgs/${packageInfo.vendor.github}`);
@@ -524,7 +555,12 @@ class OptionalPackages {
         name: 'conf',
         add: () => {
             cp.execSync('npm install conf js-yaml', { cwd: __dirname, stdio: 'inherit' });
-            fs.writeFileSync(`${__dirname}/config.yaml`, '', { encoding: 'utf-8' });
+
+            if (!fs.existsSync(path.join(__dirname, 'dist'))) {
+                fs.mkdirSync(path.join(__dirname, 'dist', { recursive: true }));
+            }
+
+            fs.writeFileSync(`${__dirname}/dist/config.yaml`, '', { encoding: 'utf-8' });
 
             fs.writeFileSync(
                 `${__dirname}/src/config.ts`,
@@ -609,8 +645,14 @@ async function configureOptionalFeatures() {
 }
 
 const askBooleanQuestion = async str => {
-    const resultStr = await askQuestion(`${str} `);
-    const result = resultStr.toString().toLowerCase().replace(/ /g, '').replace(/[^yn]/g, '').slice(0, 1);
+    let resultStr = await askQuestion(`${str} [Y/n] `);
+    resultStr = resultStr.toString().trim();
+
+    if (resultStr.length === 0) {
+        resultStr = 'yes';
+    }
+
+    const result = resultStr.toLowerCase().replace(/ /g, '').replace(/[^yn]/g, '').slice(0, 1);
 
     return result === 'y';
 };
@@ -619,7 +661,7 @@ const run = async function () {
     await populatePackageInfo();
     await configureOptionalFeatures();
 
-    const confirm = (await askQuestion('Process files (this will modify files)? '))
+    const confirm = (await askQuestion('Process files (this will modify files) [y/N]? '))
         .toString()
         .toLowerCase()
         .replace(/ /g, '')
@@ -644,11 +686,19 @@ const run = async function () {
 
     rl.close();
 
-    console.log('Done, removing this script.');
-    fs.unlinkSync(__filename);
+    try {
+        console.log('Done, removing this script.');
+        fs.unlinkSync(__filename);
+    } catch (e) {
+        console.log('Error removing script: ', e);
+    }
 
-    runCommand('git add .');
-    runCommand('git commit -m"commit configured package files"');
+    try {
+        runCommand('git add .');
+        runCommand('git commit -m"commit configured package files"');
+    } catch (e) {
+        console.log('Error committing files: ', e);
+    }
 };
 
 run();
