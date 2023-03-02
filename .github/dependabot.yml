@@ -7,9 +7,8 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
     labels:
-      - "github-actions"
       - "dependencies"
 
   - package-ecosystem: "npm"
@@ -22,5 +21,4 @@ updates:
       prefix: "npm"
       include: "scope"
     labels:
-      - "npm"
       - "dependencies"
