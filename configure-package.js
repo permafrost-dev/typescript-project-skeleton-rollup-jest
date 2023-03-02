@@ -472,8 +472,6 @@ class Features {
             const pkg = new PackageFile();
 
             pkg.delete('bin').save();
-
-            this.useCommanderPackage.disable();
         },
     };
 
